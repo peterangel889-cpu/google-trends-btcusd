@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fear &amp; Greed 3-Month Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column, summary cards first, then a two-pane chart like a trading terminal, then the trade log. */
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --line: #262d38;
+  --fg: #e6e9ee;
+  --muted: #8b94a3;
+  --btc: #f2a33a;
+  --smooth: #5aa2f0;
+  --in: #3fbf87;
+  --out: #e5605b;
+  --in-tint: rgba(63, 191, 135, 0.12);
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 var(--sans);
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 13px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.big { font-family: var(--mono); font-size: 40px; font-weight: 500; line-height: 1.1; }
+.num { font-family: var(--mono); font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.small { font-size: 13px; color: var(--muted); }
+.in { color: var(--in); }
+.out { color: var(--out); }
+.statrow { display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 15px; }
+.threshold { font-size: 15px; }
+.threshold b { font-family: var(--mono); font-weight: 500; }
+.chartbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 10px 8px; display: grid; gap: 6px; min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); padding: 0 6px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.pane1 { position: relative; height: 300px; }
+.pane2 { position: relative; height: 170px; border-top: 1px solid var(--line); padding-top: 4px; }
+.tablebox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500; }
+td.r, th.r { text-align: right; }
+td.mono { font-family: var(--mono); }
+tr:last-child td { border-bottom: 0; }
+.pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.notice { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--btc); border-radius: 0; padding: 10px 14px; font-size: 13px; color: var(--muted); }
+.error { border-left-color: var(--out); color: var(--fg); }
+footer { color: var(--muted); font-size: 12px; display: grid; gap: 4px; }
+footer a { color: var(--muted); }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Fear &amp; Greed 3-Month Signal</h1>
+    <span class="sub" id="updated">Loading live data…</span>
+  </header>
+
+  <div id="notices"></div>
+
+  <section class="cards" aria-label="Summary">
+    <div class="card">
+      <span class="label">Signal (last completed month)</span>
+      <span class="big" id="sig">…</span>
+      <span class="small" id="lastsig"></span>
+    </div>
+    <div class="card">
+      <span class="label" id="curlabel">This month so far</span>
+      <span class="num" id="cur">…</span>
+      <span class="small" id="curdays"></span>
+    </div>
+    <div class="card">
+      <span class="label">What flips it</span>
+      <span class="threshold" id="flip">…</span>
+    </div>
+    <div class="card">
+      <span class="label" id="statlabel">Since start</span>
+      <div class="statrow"><span>Rule</span><span id="ruleret">…</span></div>
+      <div class="statrow"><span>Buy &amp; hold</span><span id="holdret">…</span></div>
+      <span class="small">0.1% cost on each buy and sell</span>
+    </div>
+  </section>
+
+  <section class="chartbox" aria-label="Chart">
+    <div class="legend">
+      <span><i class="sw" style="background:var(--btc)"></i>BTC monthly close (log)</span>
+      <span><b class="in">▲</b>Buy</span>
+      <span><b class="out">▼</b>Sell</span>
+      <span><i class="sw" style="background:var(--in-tint);height:10px"></i>Holding (IN)</span>
+    </div>
+    <div class="pane1"><canvas id="c1" role="img" aria-label="Monthly Bitcoin closing price on a log scale with buy and sell markers"></canvas></div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--smooth)"></i>3-month smoothed Fear &amp; Greed</span>
+      <span><i class="sw" style="background:#5b6472"></i>Monthly average</span>
+      <span><i class="sw" style="background:repeating-linear-gradient(90deg,var(--smooth) 0 4px,transparent 4px 7px)"></i>This month (provisional)</span>
+    </div>
+    <div class="pane2"><canvas id="c2" role="img" aria-label="3-month smoothed Fear and Greed index from 0 to 100"></canvas></div>
+  </section>
+
+  <h2>Signal history</h2>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>Month</th><th>Signal</th><th class="r">Close</th><th class="r">Smoothed F&amp;G</th></tr></thead>
+      <tbody id="hist"><tr><td colspan="4" class="small">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <span>Rule: average each completed month's daily Fear &amp; Greed (UTC months), smooth over 3 months, hold Bitcoin while the smoothed value is rising. Signals use completed months only.</span>
+    <span id="sources">Data: alternative.me Fear &amp; Greed Index; BTC prices from Binance (BTC/USDT) or CoinGecko.</span>
+    <span>Not financial advice.</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script id="logic">
+// ---- Pure logic (no page access) ----
+var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+var COST = 0.001;
+function monthIdx(ms) { var d = new Date(ms); return d.getUTCFullYear() * 12 + d.getUTCMonth(); }
+function idxLabel(i) { return MONTHS[i % 12] + " " + Math.floor(i / 12); }
+function idxLong(i) { return MONTHS_LONG[i % 12]; }
+
+// fgDaily: [{ms, v}], closes: {idx: price} (current month = latest price), nowIdx: current UTC month
+function compute(fgDaily, closes, nowIdx) {
+  var acc = {};
+  fgDaily.forEach(function (d) {
+    if (!isFinite(d.v) || !isFinite(d.ms)) return;
+    var i = monthIdx(d.ms);
+    if (!acc[i]) acc[i] = { sum: 0, n: 0 };
+    acc[i].sum += d.v; acc[i].n += 1;
+  });
+  var monthly = {};
+  Object.keys(acc).forEach(function (k) { monthly[k] = acc[k].sum / acc[k].n; });
+  function S(i) {
+    if (monthly[i] == null || monthly[i - 1] == null || monthly[i - 2] == null) return null;
+    return (monthly[i] + monthly[i - 1] + monthly[i - 2]) / 3;
+  }
+  var fgIdx = Object.keys(monthly).map(Number).sort(function (a, b) { return a - b; });
+  var first = fgIdx[0], lastCompleted = null;
+  var history = [], states = {}, prevState = null;
+  for (var i = first; i < nowIdx; i++) {
+    var s = S(i), sp = S(i - 1);
+    if (s == null || sp == null || closes[i] == null) continue;
+    var st = s > sp ? "IN" : "OUT";
+    states[i] = st;
+    lastCompleted = i;
+    if (prevState === null) history.push({ idx: i, type: "start", state: st, close: closes[i], s: s });
+    else if (st !== prevState) history.push({ idx: i, type: st === "IN" ? "BUY" : "SELL", state: st, close: closes[i], s: s });
+    prevState = st;
+  }
+  var result = { monthly: monthly, S: S, states: states, history: history, lastCompleted: lastCompleted, nowIdx: nowIdx, curDays: acc[nowIdx] ? acc[nowIdx].n : 0 };
+  if (lastCompleted == null) return result;
+
+  // Returns from the start month's close to the last completed month's close
+  var start = history[0];
+  var cash = 1, units = 0;
+  if (start.state === "IN") { units = cash * (1 - COST) / start.close; cash = 0; }
+  history.slice(1).forEach(function (h) {
+    if (h.type === "BUY") { units = cash * (1 - COST) / h.close; cash = 0; }
+    else { cash = units * h.close * (1 - COST); units = 0; }
+  });
+  var endClose = closes[lastCompleted];
+  result.ruleRet = (cash + units * endClose) - 1;
+  result.holdRet = endClose / start.close - 1;
+  result.startIdx = start.idx;
+  result.signal = states[lastCompleted];
+  var lastTrade = history.length > 1 ? history[history.length - 1] : null;
+  result.lastTrade = lastTrade;
+
+  // Flip threshold: next month's S beats S(t) only if its average beats monthly[t-2]
+  result.nextIdx = lastCompleted + 1;
+  result.threshold = monthly[lastCompleted - 2];
+  if (monthly[nowIdx] != null) {
+    result.provisional = monthly[nowIdx];
+    if (monthly[nowIdx - 1] != null && monthly[nowIdx - 2] != null) result.provS = S(nowIdx);
+  }
+  return result;
+}
+
+// Binance klines -> {idx: close}; each candle's close; the open month gives the live price
+function closesFromKlines(rows) {
+  var out = {};
+  rows.forEach(function (r) { out[monthIdx(Number(r[0]))] = Number(r[4]); });
+  return out;
+}
+// CoinGecko [[ms, price]] -> {idx: close}. A point at 00:00 on the 1st is the previous month's close.
+function closesFromDaily(points) {
+  var out = {};
+  points.slice().sort(function (a, b) { return a[0] - b[0]; }).forEach(function (p) { out[monthIdx(p[0] - 1)] = p[1]; });
+  return out;
+}
+if (typeof module !== "undefined") module.exports = { compute: compute, closesFromKlines: closesFromKlines, closesFromDaily: closesFromDaily, monthIdx: monthIdx };
+</script>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var fmtUsd = function (v) { return "$" + Math.round(v).toLocaleString("en-US"); };
+  var fmtPct = function (v) { var p = v * 100; return (p >= 0 ? "+" : "−") + Math.abs(p).toLocaleString("en-US", { maximumFractionDigits: 0 }) + "%"; };
+  var notice = function (msg, isError) {
+    var d = document.createElement("div");
+    d.className = "notice" + (isError ? " error" : "");
+    d.textContent = msg;
+    $("notices").appendChild(d);
+  };
+  function getJSON(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  var nowIdx = monthIdx(Date.now());
+  var fgP = getJSON("https://api.alternative.me/fng/?limit=0").then(function (j) {
+    return j.data.map(function (d) { return { ms: Number(d.timestamp) * 1000, v: Number(d.value) }; });
+  });
+  var priceP = getJSON("https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1M&limit=1000")
+    .then(function (rows) { return { closes: closesFromKlines(rows), src: "Binance BTC/USDT monthly candles", full: true }; })
+    .catch(function () {
+      return getJSON("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=365")
+        .then(function (j) { return { closes: closesFromDaily(j.prices), src: "CoinGecko (last 365 days only)", full: false }; });
+    });
+
+  Promise.allSettled([fgP, priceP]).then(function (res) {
+    if (res[0].status !== "fulfilled") {
+      notice("Couldn't load Fear & Greed data from alternative.me (" + res[0].reason.message + "). Try reloading in a minute.", true);
+      $("updated").textContent = "Data unavailable";
+      return;
+    }
+    if (res[1].status !== "fulfilled") {
+      notice("Couldn't load Bitcoin prices from Binance or CoinGecko. Try reloading in a minute.", true);
+      $("updated").textContent = "Data unavailable";
+      return;
+    }
+    var price = res[1].value;
+    if (!price.full) notice("Binance didn't respond, so prices come from CoinGecko and only cover the last 12 months. The signal and threshold are still correct; the history and returns are shorter.");
+    $("sources").textContent = "Data: alternative.me Fear & Greed Index; BTC prices from " + price.src + ".";
+    var r = compute(res[0].value, price.closes, nowIdx);
+    if (r.lastCompleted == null) { notice("Not enough months of data to compute a signal yet.", true); return; }
+    render(r, price.closes);
+  });
+
+  function render(r, closes) {
+    var d = new Date();
+    $("updated").textContent = "Live data · loaded " + d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+
+    var sig = $("sig");
+    sig.textContent = r.signal;
+    sig.className = "big " + (r.signal === "IN" ? "in" : "out");
+    var through = "As of the " + idxLabel(r.lastCompleted) + " close. ";
+    $("lastsig").textContent = r.lastTrade
+      ? through + "Last signal: " + r.lastTrade.type + " in " + idxLabel(r.lastTrade.idx) + " at " + fmtUsd(r.lastTrade.close) + "."
+      : through + "No trades yet.";
+
+    $("curlabel").textContent = idxLabel(r.nowIdx) + " so far";
+    if (r.provisional != null) {
+      $("cur").textContent = r.provisional.toFixed(1);
+      $("curdays").textContent = "Provisional average of " + r.curDays + " day" + (r.curDays === 1 ? "" : "s") + ". Doesn't trigger a signal until the month ends.";
+    } else {
+      $("cur").textContent = "–";
+      $("curdays").textContent = "No readings yet this month.";
+    }
+
+    var th = r.threshold.toFixed(1);
+    var nm = idxLong(r.nextIdx);
+    $("flip").innerHTML = r.signal === "IN"
+      ? nm + " needs to average <b>" + th + "</b> or below for a <b class=\"out\">SELL</b>."
+      : nm + " needs to average above <b>" + th + "</b> for a <b class=\"in\">BUY</b>.";
+    if (r.provisional != null && r.nextIdx === r.nowIdx) {
+      var onTrack = r.signal === "IN" ? r.provisional <= r.threshold : r.provisional > r.threshold;
+      $("flip").innerHTML += "<br><span class=\"small\">So far it's " + r.provisional.toFixed(1) + (onTrack ? ", which would flip it." : ", so no change.") + "</span>";
+    }
+
+    $("statlabel").textContent = "From " + idxLabel(r.startIdx) + " to " + idxLabel(r.lastCompleted);
+    $("ruleret").textContent = fmtPct(r.ruleRet);
+    $("holdret").textContent = fmtPct(r.holdRet);
+
+    // History table, newest first
+    $("hist").innerHTML = r.history.slice().reverse().map(function (h) {
+      var cls = h.type === "BUY" ? "in" : h.type === "SELL" ? "out" : "";
+      var label = h.type === "start" ? "start: " + h.state : h.type;
+      return "<tr><td>" + idxLabel(h.idx) + "</td><td><span class=\"pill " + cls + "\">" + label + "</span></td><td class=\"r mono\">" + fmtUsd(h.close) + "</td><td class=\"r mono\">" + h.s.toFixed(1) + "</td></tr>";
+    }).join("");
+
+    drawCharts(r, closes);
+  }
+
+  function drawCharts(r, closes) {
+    if (typeof Chart === "undefined") { notice("The chart library didn't load. The numbers above are still correct.", true); return; }
+    var css = getComputedStyle(document.documentElement);
+    var C = function (n) { return css.getPropertyValue(n).trim(); };
+    var idxs = [];
+    for (var i = r.startIdx - 3; i <= r.nowIdx; i++) idxs.push(i);
+    var labels = idxs.map(idxLabel);
+    var last = idxs.length - 1;
+    var priceData = idxs.map(function (i) { return closes[i] != null ? closes[i] : null; });
+    var tradeAt = {};
+    r.history.forEach(function (h) { if (h.type !== "start") tradeAt[h.idx] = h.type; });
+    var buys = idxs.map(function (i, k) { return tradeAt[i] === "BUY" ? priceData[k] * 0.9 : null; });
+    var sells = idxs.map(function (i, k) { return tradeAt[i] === "SELL" ? priceData[k] * 1.11 : null; });
+    var monthly = idxs.map(function (i) { return r.monthly[i] != null ? r.monthly[i] : null; });
+    var smooth = idxs.map(function (i) { return i < r.nowIdx ? r.S(i) : (r.provS != null ? r.provS : null); });
+
+    // IN periods: from a month whose state is IN to the next month
+    var ranges = [], open = null;
+    idxs.forEach(function (i, k) {
+      var inNow = r.states[i] === "IN";
+      if (inNow && open === null) open = k;
+      if (!inNow && open !== null && r.states[i] !== undefined) { ranges.push([open, k]); open = null; }
+    });
+    if (open !== null) ranges.push([open, last]);
+
+    var grid = C("--line"), tick = C("--muted");
+    var shade = { id: "shade", beforeDatasetsDraw: function (c) {
+      var x = c.scales.x, a = c.chartArea, g = c.ctx;
+      g.save(); g.fillStyle = C("--in-tint");
+      ranges.forEach(function (rg) { var x0 = x.getPixelForValue(rg[0]), x1 = x.getPixelForValue(rg[1]); g.fillRect(x0, a.top, x1 - x0, a.bottom - a.top); });
+      g.restore();
+    } };
+    var dashLast = { borderDash: function (ctx) { return ctx.p1DataIndex === last ? [5, 4] : undefined; } };
+    var xAxis = { grid: { display: false }, ticks: { color: tick, autoSkip: false, maxRotation: 0, font: { size: 11 },
+      callback: function (v, k) { var i = idxs[k]; return i % 12 === 0 ? String(Math.floor(i / 12)) : ""; } } };
+    var yWidth = function (s) { s.width = 58; };
+    var base = { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false } };
+    Chart.defaults.font.family = C("--sans");
+
+    var minP = Math.min.apply(null, priceData.filter(function (v) { return v != null; }));
+    var maxP = Math.max.apply(null, priceData.filter(function (v) { return v != null; }));
+    new Chart($("c1"), {
+      type: "line", plugins: [shade],
+      data: { labels: labels, datasets: [
+        { label: "Close", data: priceData, borderColor: C("--btc"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, segment: dashLast, spanGaps: true },
+        { label: "Buy", data: buys, showLine: false, pointStyle: "triangle", pointRadius: 7, pointHoverRadius: 8, backgroundColor: C("--in"), borderColor: C("--in") },
+        { label: "Sell", data: sells, showLine: false, pointStyle: "triangle", rotation: 180, pointRadius: 7, pointHoverRadius: 8, backgroundColor: C("--out"), borderColor: C("--out") }
+      ] },
+      options: Object.assign({}, base, {
+        plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.raw != null; }, callbacks: {
+          label: function (it) { return it.datasetIndex === 0 ? "Close " + fmtUsd(it.raw) + (it.dataIndex === last ? " (live)" : "") : it.dataset.label + " at " + fmtUsd(priceData[it.dataIndex]); } } } },
+        scales: { x: xAxis, y: { type: "logarithmic", min: minP * 0.8, max: maxP * 1.25, afterFit: yWidth, grid: { color: grid }, ticks: { color: tick, font: { size: 11 },
+          callback: function (v) {
+            var e = Math.pow(10, Math.floor(Math.log10(v))), m = Math.round(v / e);
+            if ([1, 2, 5].indexOf(m) < 0 || Math.abs(v - m * e) > v * 1e-6) return "";
+            return v >= 1000 ? "$" + (v / 1000) + "k" : "$" + v;
+          } } } }
+      })
+    });
+
+    new Chart($("c2"), {
+      type: "line", plugins: [shade],
+      data: { labels: labels, datasets: [
+        { label: "3-month smoothed", data: smooth, borderColor: C("--smooth"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, segment: dashLast },
+        { label: "Monthly average", data: monthly, borderColor: "#5b6472", borderWidth: 1.25, pointRadius: 0, pointHoverRadius: 2, segment: dashLast }
+      ] },
+      options: Object.assign({}, base, {
+        plugins: { legend: { display: false }, tooltip: { filter: function (it) { return it.raw != null; }, callbacks: { label: function (it) { return it.dataset.label + " " + it.raw.toFixed(1) + (it.dataIndex === last ? " (provisional)" : ""); } } } },
+        scales: { x: xAxis, y: { min: 0, max: 100, afterFit: yWidth, grid: { color: grid }, ticks: { color: tick, stepSize: 25, font: { size: 11 } } } }
+      })
+    });
+  }
+})();
+</script>
+</body>
+</html>
